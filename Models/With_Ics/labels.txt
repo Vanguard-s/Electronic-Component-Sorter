@@ -1,0 +1,8 @@
+0 Resistor
+1 Capacitor
+2 Transistor
+3 Diode
+4 Relay
+5 ICs
+6 Potentiometer
+7 Led
