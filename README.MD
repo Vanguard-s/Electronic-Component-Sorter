@@ -46,12 +46,12 @@ The Electronic Component Classifier is a project that uses machine learning and 
 * Change the paths for the models and the labels in the ```img_classf.py```(present under the IMG_CLASFF Folder) file similarly change the paths present in the ```capacitors.py``` (present under the CAPACITOR Folder).
 * Open up ```trans.py```(present under the TRANSISTOR_OCR Folder) and change the paths for the ```recognition_model_path``` and the ```detection_model_path```.
 * Change the path of the output directory in the ```main.py``` file .
-* It is advised to refer to the video for changing paths. [Video Link](#video-guide)
+* It is advised to refer to the video for changing paths. [Video Link](#video-guide-🎥)
 * For testing purposes if a component is physically not available, then obtaining a clear image of it on your phone and then using that would suffice, but it is advised to use actual component.
 
 
 Follow the on-screen instructions to navigate through the application.
-- **Step 1** Make sure the libraries that are present in the ```requirements.txt``` file are installed then open up a terminal navigate into the directory where this file has been saved run the following command in the terminal  ```python app.py``` after following instructions in [Usage](#3-usage)
+- **Step 1** Make sure the libraries that are present in the ```requirements.txt``` file are installed then open up a terminal navigate into the directory where this file has been saved run the following command in the terminal  ```python app.py``` after following instructions in [Usage](#3-usage-📒)
 - **Step 2** A new window will be created where you can see the webcam press ```c``` to capture an image and process it or enter ```q``` to quit.
 - **Step 3** An output will be shown indicating what specific component it is.
 
@@ -63,7 +63,9 @@ Follow the on-screen instructions to navigate through the application.
 
 ## Video Guide 🎥
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/35lopIiGYqE?si=77lF-qDTngmrvLHI" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+[![YouTube](photos/thum.jpg)](https://youtu.be/35lopIiGYqE)
+
 
 <i class="fa-brands fa-youtube fa-spin fa-2x"></i> [YouTube Video Link](https://youtu.be/35lopIiGYqE)
 
