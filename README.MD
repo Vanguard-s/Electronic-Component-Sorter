@@ -63,9 +63,7 @@ Follow the on-screen instructions to navigate through the application.
 
 ## Video Guide 🎥
 
-<div style="text-align: center; max-width: 800px; margin: 0 auto;">
-    <iframe width="560" height="315" src="https://www.youtube.com/embed/35lopIiGYqE?si=77lF-qDTngmrvLHI" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-</div>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/35lopIiGYqE?si=77lF-qDTngmrvLHI" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
 <i class="fa-brands fa-youtube fa-spin fa-2x"></i> [YouTube Video Link](https://youtu.be/35lopIiGYqE)
 
