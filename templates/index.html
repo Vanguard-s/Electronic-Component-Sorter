@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Interface p1</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: black;
+        }
+
+        /* Background image with fading animation */
+        .background-image {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('https://images2.alphacoders.com/117/1171867.png');
+            background-size: cover;
+            background-position: center;
+            animation: fadeIn 20s forwards; /* Fading in animation */
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0; /* Fully transparent */
+            }
+            to {
+                opacity: 1; /* Fully opaque */
+            }
+        }
+
+        .container {
+            position: relative;
+            text-align: center;
+            z-index: 1; /* Ensure the text appears above the background image */
+            padding: 20px;
+            border-radius: 10px;
+            background-color: rgba(0, 0, 0, 1); /* Semi-transparent black overlay */
+        }
+
+        .buttons {
+            margin-top: 20px;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 0 10px;
+            cursor: pointer;
+        }
+
+        .button:hover {
+            background-color: #0056b3;
+        }
+
+        h1 {
+            color: white; /* Set text color to white */
+        }
+    </style>
+</head>
+<body>
+    <!-- Background image -->
+    <div class="background-image"></div>
+
+    <div class="container">
+        <h1>Classify, Recognize and Sort Electronic and Electrical components <br> using AI and ML </h1>
+        <div class="buttons">
+            <!-- Button: Classify -->
+            <form action="/classify" method="post">
+                <button type="submit" class="button">Classify</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

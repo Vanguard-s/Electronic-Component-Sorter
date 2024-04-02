@@ -1,0 +1,6 @@
+0 Ceramic Capacitor
+1 Tantulam Capacitor
+2 Electrolytic capacitor
+3 Mica capacitor
+4 Paper capacitor
+5 Polyester capacitor

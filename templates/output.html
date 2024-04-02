@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Type of Component</title>
+    <style>
+        body {
+            position: relative;
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: black;
+            overflow: hidden; /* Hide overflow to prevent scrolling */
+        }
+
+        .background-image {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('https://images2.alphacoders.com/117/1171867.png');
+            background-size: cover;
+            background-position: center;
+            animation: fadeIn 10s forwards; /* Fading in animation */
+            z-index: -1; /* Ensure the image is behind other content */
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0; /* Fully transparent */
+            }
+            to {
+                opacity: 1; /* Fully opaque */
+            }
+        }
+
+        .text-box {
+            background-color: rgba(0, 0, 0, 1); /* Semi-transparent black overlay */
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 1;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 20px; /* Add space between the heading and output */
+        }
+
+        pre {
+            font-size: 1em;
+            font-weight: bold;
+            margin-bottom: 20px; /* Add space between the output and button */
+        }
+
+        .component-text {
+            background-color: black;
+            padding: 10px;
+            border-radius: 5px;
+            color: white; /* Set text color to white */
+            display: inline-block;
+            margin-bottom: 20px; /* Add space between the text box and button */
+        }
+
+        .button {
+            padding: 10px 20px;
+            background-color: #007bff; /* Blue color for the button */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s; /* Smooth transition effect */
+        }
+
+        .button:hover {
+            background-color: #0056b3; /* Darker blue color on hover */
+        }
+    </style>
+</head>
+<body>
+    <div class="background-image"></div>
+    <div class="text-box">
+        <h1>Type of the component:</h1>
+        <pre class="component-text">
+            {% if output == 0 %}
+                <b>Resistor</b>
+            {% elif output == 1 %}
+                <b>Capacitor</b>
+                <button class="button" onclick="openFOutput('cap')">Further details</button>
+            {% elif output == 2 %}
+                <b>LED</b>
+            {% elif output == 3 %}
+                <b>Transistor</b>
+                <button class="button" onclick="openFOutput('trans')">Further details</button>
+            {% elif output == 4 %}
+                <b>Potentiometer</b>
+            {% elif output == 5 %}
+                <b>Diodes</b>
+            {% elif output == 6 %}
+                <b>Integrated Circuits</b>
+                <button class="button" onclick="openFOutput('trans')">Further details</button>
+            {% else %}
+                <b>Unknown Component</b>
+            {% endif %}
+        </pre>
+    </div>
+
+    <script>
+        function openFOutput(component) {
+            let url = '/f_output?component=' + component;
+            window.open(url, '_blank');
+        }
+    </script>
+</body>
+</html>
