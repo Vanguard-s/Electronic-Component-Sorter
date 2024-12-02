@@ -188,7 +188,7 @@ Follow the on-screen instructions to navigate through the application.
 <i class="fa-brands fa-linkedin fa-shake fa-2x"></i>
 
 * [Anmol](https://www.linkedin.com/in/anmolkrish)
-* [Harish](https://www.linkedin.com/in/harish-r-07b3192b7?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app)
+* [Harish](https://www.linkedin.com/in/harish-r-8b68a333b?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app)
 * [Mauli](https://www.linkedin.com/in/maulir?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app)
 * [Aryan](https://www.linkedin.com/in/aryan-jaljith-64283b240?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app)
 
