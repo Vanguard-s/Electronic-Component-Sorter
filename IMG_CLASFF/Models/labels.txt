@@ -1,7 +1,0 @@
-0 Resistors
-1 Capacitors
-2 LED
-3 Transistors
-4 Potentiometer
-5 Diodes
-6 ICs
