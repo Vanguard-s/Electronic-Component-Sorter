@@ -1,0 +1,367 @@
+import cv2
+import numpy as np
+from ultralytics import YOLO
+import sys
+import joblib 
+import tensorflow as tf
+from sklearn.preprocessing import LabelEncoder
+import os
+import math # For MSRCR
+
+# ==============================================================================
+# 1. MSRCR (MULTISCALE RETINEX) IMPLEMENTATION
+# ==============================================================================
+
+def singleScaleRetinex(img, sigma):
+    """Applies single-scale Retinex to an image."""
+    img_float = np.float64(img) + 1.0
+    blur = cv2.GaussianBlur(img_float, (0, 0), sigma)
+    img_retinex = np.log10(img_float) - np.log10(blur)
+    img_retinex = cv2.normalize(img_retinex, None, 0, 255, cv2.NORM_MINMAX)
+    return np.uint8(img_retinex)
+
+def multiScaleRetinex(img, scales):
+    """Applies multi-scale Retinex."""
+    retinex = np.zeros_like(img, dtype=np.float64)
+    weights = [1.0 / len(scales)] * len(scales)
+    
+    for i, sigma in enumerate(scales):
+        retinex += weights[i] * singleScaleRetinex(img, sigma)
+        
+    return retinex
+
+def _MSRCR(img, scales, alpha=125, beta=-46):
+    """
+    Main MSRCR (Multiscale Retinex with Color Restoration) function.
+    """
+    img_float = np.float64(img) + 1.0
+    intensity = np.sum(img_float, axis=2)
+    intensity_retinex = multiScaleRetinex(intensity, scales)
+    
+    color_ratios = np.log10((img_float / (intensity[:, :, np.newaxis] + 1.0)) * 100.0)
+    
+    img_msrcr = np.zeros_like(img_float)
+    for i in range(img_float.shape[2]): # For each channel (B, G, R)
+        img_msrcr[:, :, i] = (
+            beta * (color_ratios[:, :, i] - alpha * np.log10(intensity + 1.0))
+        )
+        img_msrcr[:, :, i] = intensity_retinex * img_msrcr[:, :, i]
+        
+    img_msrcr = cv2.normalize(img_msrcr, None, 0, 255, cv2.NORM_MINMAX)
+    img_msrcr = np.uint8(img_msrcr)
+    
+    return img_msrcr
+
+# ==============================================================================
+# 2. COLOR & RESISTOR VALUE DEFINITIONS
+# ==============================================================================
+# (All maps - DIGIT_MAP, MULTIPLIER_MAP, TOLERANCE_MAP, TCR_MAP - are unchanged)
+DIGIT_MAP = {
+    'Black': 0, 'Brown': 1, 'Red': 2, 'Orange': 3, 'Yellow': 4,
+    'Green': 5, 'Blue': 6, 'Violet': 7, 'Gray': 8, 'White': 9
+}
+MULTIPLIER_MAP = {
+    'Black': 10**0, 'Brown': 10**1, 'Red': 10**2, 'Orange': 10**3,
+    'Yellow': 10**4, 'Green': 10**5, 'Blue': 10**6, 'Violet': 10**7,
+    'Gray': 10**8, 'White': 10**9, 'Gold': 10**-1, 'Silver': 10**-2
+}
+TOLERANCE_MAP = {
+    'Brown': 1, 'Red': 2, 'Green': 0.5, 'Blue': 0.25,
+    'Violet': 0.1, 'Gray': 0.05, 'Gold': 5, 'Silver': 10
+}
+TCR_MAP = { 
+    'Brown': 100, 'Red': 50, 'Orange': 15, 'Yellow': 25,
+    'Blue': 10, 'Violet': 5, 'Black': 250, 'White': 1
+}
+
+# ==============================================================================
+# 3. HELPER FUNCTIONS
+# ==============================================================================
+
+class ColorClassifierDNN:
+    def __init__(self, model_path, assets_path):
+        """Loads the pre-trained DNN histogram model and encoder."""
+        try:
+            self.model = tf.keras.models.load_model(model_path)
+            assets = joblib.load(assets_path)
+            self.encoder = assets['encoder']
+            print("Successfully loaded DNN histogram model and encoder.")
+        except Exception as e:
+            print(f"An error occurred loading the models: {e}")
+            self.model = None
+            
+    def get_color_name(self, fingerprint):
+        """Predicts the color name from a 32-element histogram fingerprint."""
+        if self.model is None or fingerprint is None:
+            return "Unknown"
+        
+        fingerprint_array = fingerprint.reshape(1, 32)
+        prediction_probabilities = self.model.predict(fingerprint_array, verbose=0)
+        predicted_index = np.argmax(prediction_probabilities, axis=1)[0]
+        color_name = self.encoder.inverse_transform([predicted_index])[0]
+        return color_name
+
+def get_color_fingerprint(image, mask):
+    """
+    Calculates a 32-bin histogram (fingerprint) for the masked region.
+    """
+    try:
+        mask_bgr = cv2.merge([mask, mask, mask])
+        masked_image = cv2.bitwise_and(image, mask_bgr)
+        hsv_patch = cv2.cvtColor(masked_image, cv2.COLOR_BGR2HSV)
+        
+        mask_8bit = (mask > 0).astype(np.uint8)
+        
+        if np.sum(mask_8bit) == 0:
+            return None
+
+        h_hist = cv2.calcHist([hsv_patch], [0], mask_8bit, [16], [0, 180])
+        cv2.normalize(h_hist, h_hist)
+        
+        s_hist = cv2.calcHist([hsv_patch], [1], mask_8bit, [8], [0, 256])
+        cv2.normalize(s_hist, s_hist)
+        
+        v_hist = cv2.calcHist([hsv_patch], [2], mask_8bit, [8], [0, 256])
+        cv2.normalize(v_hist, v_hist)
+        
+        fingerprint = np.concatenate((h_hist.flatten(), s_hist.flatten(), v_hist.flatten()))
+        return fingerprint
+
+    except Exception as e:
+        print(f"[Error in get_color_fingerprint]: {e}")
+        return None
+
+# --- This is the robust "waterfall" decoder, unchanged ---
+def decode_resistor(band_info_list):
+    band_count = len(band_info_list)
+    if band_count < 4 or band_count > 6:
+        colors_found = [b[1] for b in band_info_list]
+        return f"Error: Expected 4-6 bands, got {band_count}. (Found: {colors_found})"
+
+    sorted_bands = sorted(band_info_list, key=lambda b: b[0])
+    band_colors = [b[1] for b in sorted_bands]
+    x_positions = [b[0] for b in sorted_bands]
+    
+    orientation_confirmed = False
+    
+    if band_count > 4: 
+        gaps = [x_positions[i+1] - x_positions[i] for i in range(band_count - 1)]
+        mean_gap = np.mean(gaps)
+        largest_gap = np.max(gaps)
+        largest_gap_index = np.argmax(gaps)
+        if largest_gap > (mean_gap * 1.5):
+            if largest_gap_index == band_count - 2:
+                orientation_confirmed = True
+            elif largest_gap_index == 0:
+                band_colors.reverse()
+                orientation_confirmed = True
+    
+    if not orientation_confirmed:
+        if band_colors[-1] in ('Gold', 'Silver'):
+            orientation_confirmed = True
+        elif band_colors[0] in ('Gold', 'Silver'):
+            band_colors.reverse()
+            orientation_confirmed = True
+
+    if not orientation_confirmed:
+        unambiguous_digits = ['Violet', 'Blue', 'Green']
+        if band_colors[-1] in unambiguous_digits:
+            band_colors.reverse()
+            orientation_confirmed = True
+
+    try:
+        # (Decoding logic for 4, 5, 6 bands is unchanged)
+        if band_count == 4:
+            digit1 = DIGIT_MAP[band_colors[0]]
+            digit2 = DIGIT_MAP[band_colors[1]]
+            multiplier = MULTIPLIER_MAP[band_colors[2]]
+            tolerance = TOLERANCE_MAP[band_colors[3]]
+            resistance = (digit1 * 10 + digit2) * multiplier
+            tol_str = f"+/-{tolerance}%"
+        elif band_count == 5:
+            digit1 = DIGIT_MAP[band_colors[0]]
+            digit2 = DIGIT_MAP[band_colors[1]]
+            digit3 = DIGIT_MAP[band_colors[2]]
+            multiplier = MULTIPLIER_MAP[band_colors[3]]
+            tolerance = TOLERANCE_MAP[band_colors[4]]
+            resistance = (digit1 * 100 + digit2 * 10 + digit3) * multiplier
+            tol_str = f"+/-{tolerance}%"
+        elif band_count == 6:
+            digit1 = DIGIT_MAP[band_colors[0]]
+            digit2 = DIGIT_MAP[band_colors[1]]
+            digit3 = DIGIT_MAP[band_colors[2]]
+            multiplier = MULTIPLIER_MAP[band_colors[3]]
+            tolerance = TOLERANCE_MAP[band_colors[4]]
+            tcr = TCR_MAP[band_colors[5]]
+            resistance = (digit1 * 100 + digit2 * 10 + digit3) * multiplier
+            tol_str = f"+/-{tolerance}% (TCR: {tcr} ppm/K)"
+
+        # (Formatting logic is unchanged)
+        if resistance >= 1_000_000_000:
+            res_str = f"{resistance / 1_000_000_000:.1f} GOhms"
+        elif resistance >= 1_000_000:
+            res_str = f"{resistance / 1_000_000:.1f} MOhms"
+        elif resistance >= 1_000:
+            res_str = f"{resistance / 1_000:.1f} kOhms"
+        else:
+            res_str = f"{resistance:.1f} Ohms"
+        return f"{res_str} {tol_str}"
+        
+    except KeyError as e:
+        return f"Error: Color {e} in wrong position. (Bands: {band_colors})"
+    except Exception as e:
+        return f"[Error in decode_resistor]: {e}"
+
+# ==============================================================================
+# 4. MAIN PROCESSING FUNCTION
+# ==============================================================================
+
+def process_image(model_path, image_path, color_model, msrcr_scales, output_dir): 
+    print(f"\n--- Processing image: {image_path} ---")
+    
+    # --- 1. Load image ---
+    image = cv2.imread(image_path)
+    if image is None:
+        print(f"!!! FATAL ERROR: Could not load image. Skipping.")
+        return
+        
+    # --- 2. Preprocessing ---
+    print("... 2a. Applying MSRCR (Lighting Normalization)...")
+    processed_image = _MSRCR(image, msrcr_scales)
+    
+    print("... 2b. Applying Bilateral Filter (Noise Reduction)...")
+    processed_image = cv2.bilateralFilter(processed_image, 9, 75, 75)
+    
+    # --- 3. Load YOLO Model ---
+    try:
+        model = YOLO(model_path)
+    except Exception as e:
+        print(f"!!! FATAL ERROR: Error loading model. Check path. Details: {e}")
+        return
+        
+    print("... 3. Running inference...")
+    try:
+        results = model(processed_image, conf=0.1) 
+    except Exception as e:
+        print(f"!!! FATAL ERROR: Error during model inference: {e}")
+        return
+
+    if not results[0].masks:
+        print("... 4. No bands were detected in the image.")
+        cv2.imshow("Resistor Detection Result (No Bands Found)", image)
+        cv2.waitKey(0) 
+        return
+
+    annotated_image = results[0].plot(img=image.copy()) # Plot on the ORIGINAL image
+    detected_bands = []
+    
+    try:
+        masks = results[0].masks.data.cpu().numpy()
+        boxes = results[0].boxes.data.cpu().numpy() 
+    except Exception as e:
+        print(f"!!! FATAL ERROR: Error extracting masks/boxes from results: {e}")
+        return
+
+    print(f"... 4. Found {len(masks)} potential bands. Analyzing colors...")
+    for i in range(len(masks)):
+        
+        confidence = boxes[i][4]
+        
+        if confidence <= 0.20:
+            x_center_low_conf = (boxes[i][0] + boxes[i][2]) / 2
+            print(f"     - SKIPPING band at x={x_center_low_conf:.0f}: Low confidence ({confidence:.2f})")
+            continue 
+            
+        mask_raw = masks[i]
+        mask_8bit = (mask_raw * 255).astype(np.uint8)
+        mask_resized = cv2.resize(mask_8bit, (image.shape[1], image.shape[0]))
+        
+        # Get fingerprint from the ORIGINAL image
+        fingerprint = get_color_fingerprint(image, mask_resized)
+        
+        color_name = color_model.get_color_name(fingerprint)
+        
+        x1, y1, x2, y2 = boxes[i][:4] 
+        x_center = (x1 + x2) / 2
+        
+        if color_name:
+            detected_bands.append((x_center, color_name))
+            print(f"     - Band at x={x_center:.0f}: Color={color_name} (Conf: {confidence:.2f})")
+        else:
+            print(f"     - Band at x={x_center:.0f}: Could not determine color. (Conf: {confidence:.2f})")
+
+    print("... 5. Decoding...")
+    resistance_value = decode_resistor(detected_bands)
+    
+    print(f"\n======================================")
+    print(f" FINAL RESULT: {resistance_value}")
+    print(f"======================================")
+    
+    cv2.putText(annotated_image, resistance_value, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    
+    # --- Create unique output path ---
+    base_filename = os.path.basename(image_path)
+    filename_no_ext = os.path.splitext(base_filename)[0]
+    output_path = os.path.join(output_dir, f"{filename_no_ext}_result.jpg")
+    
+    cv2.imwrite(output_path, annotated_image)
+    print(f"Result image saved to: {output_path}")
+
+    cv2.imshow("Resistor Detection Result", annotated_image)
+    print("Press any key to close...")
+    cv2.waitKey(0) 
+
+# ==============================================================================
+# 5. RUN THE SCRIPT (MODIFIED FOR A SINGLE FILE)
+# ==============================================================================
+
+if __name__ == "__main__":
+    
+    print(">>> SCRIPT EXECUTION STARTED <<<")
+    
+    MODEL_PATH = r'D:/Hackathon/Band_Detection_V3/ResistorProject/run_heavy_aug/weights/best.pt' 
+    
+    # --- MODIFIED: Path to a SINGLE image ---
+    IMAGE_PATH = r"C:\Users\kppse\OneDrive\Desktop\Test_1\Test_12.jpg"
+    
+    # --- Paths for the Histogram DNN model ---
+    DNN_MODEL_PATH = "color_classifier_histogram.keras"
+    ASSETS_PATH = "color_classifier_histogram_assets.joblib"
+    
+    # --- MSRCR scales ---
+    MSRCR_SCALES = [15, 80, 200]
+    
+    # --- Output folder ---
+    OUTPUT_DIR = "output_results"
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    
+    print("--- Loading Color Classifier Model ---")
+    color_model = ColorClassifierDNN(
+        model_path=DNN_MODEL_PATH,
+        assets_path=ASSETS_PATH
+    )
+
+    if color_model.model is None:
+        print("\n!!! FATAL: Could not load color classifier model. Exiting.")
+        sys.exit()
+
+    print("--- Starting Image Processing ---")
+    
+    if not os.path.isfile(IMAGE_PATH):
+        print(f"!!! FATAL: File not found: {IMAGE_PATH}")
+        sys.exit()
+
+    # --- Process the single file ---
+    try:
+        process_image(
+            MODEL_PATH, 
+            IMAGE_PATH, 
+            color_model, 
+            MSRCR_SCALES,
+            OUTPUT_DIR
+        )
+    except Exception as e:
+        print(f"!!! UNHANDLED ERROR processing {IMAGE_PATH}: {e}")
+
+    print("\n>>> SCRIPT EXECUTION FINISHED <<<")
+    cv2.destroyAllWindows()
